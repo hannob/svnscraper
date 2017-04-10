@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# Downloads publicly available .svn dirs.
+#
+# by Hanno Böck, https://hboeck.de/
+# Licensed under "The Unlicense", feel free to do with the code whatever you want.
+
+OUT="svnscraper/.svn"
+
+function help {
+	echo "Usage:"
+	echo -e "\tsvnscraper [url]"
+	echo ""
+	echo "svnscraper will download the svn repository from [url]/.svn to svnscraper/.svn."
+	echo "Afterwards you can run"
+	echo -e "\tsvn revert . --recursive"
+	echo "to restore the files inside the svnscraper/ dir."
+	exit 1
+}
+
+if [ -z "$1" ]; then
+	help
+fi
+
+
+mkdir -p "$OUT"
+if ! wget -O "$OUT/entries" "$1/.svn/entries"; then
+	echo "Failed to download $1/.svn/entries"
+	echo
+	help
+fi
+
+wget -O "$OUT/format" "$1/.svn/format"
+wget -O "$OUT/wc.db" "$1/.svn/wc.db"
+wget -O "$OUT/wc.db-journal" "$1/.svn/wc.db-journal"
+mkdir "$OUT/pristine"
+mkdir "$OUT/tmp"
+
+hashes=$(sqlite3 $OUT/wc.db .dump|grep -oe 'sha1$[0-9a-f]*'|sed -e 's:sha1\$::g'|sort -u)
+
+for i in $hashes; do
+	pf=$(echo "$i" | head -c 2)
+	mkdir -p "$OUT/pristine/$pf"
+	wget -O "$OUT/pristine/$pf/$i.svn-base" "$1/.svn/pristine/$pf/$i.svn-base"
+done
